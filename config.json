@@ -1,14 +1,14 @@
 {
 	"credentials": {
-		"application_id": "1077744729824960522"
+		"application_id": "1234567890"
 	},
 	"activity": {
 		"type": 0,
-		"state": "Uptime: {uptime}",
+		"state": "Doing something cool!",
 		"details": "{platform} {version}",
 		"assets": {
-			"large_image": "arch",
-			"large_text": "Arch Linux 2025.06.01"
+			"large_image": "image",
+			"large_text": "This is an image."
 		},
 		"timestamps": {
 			"end": 1
