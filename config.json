@@ -1,0 +1,17 @@
+{
+	"credentials": {
+		"application_id": "1077744729824960522"
+	},
+	"activity": {
+		"type": 0,
+		"state": "Uptime: {uptime}",
+		"details": "{platform} {version}",
+		"assets": {
+			"large_image": "arch",
+			"large_text": "Arch Linux 2025.06.01"
+		},
+		"timestamps": {
+			"end": 1
+		}
+	}
+}
