@@ -6,6 +6,11 @@ type Config struct {
 	} `mapstructure:"credentials" json:"credentials"`
 
 	Activity DiscordActivity `mapstructure:"activity" json:"activity"`
+
+	Constants struct {
+		Static map[string]string `mapstructure:"static" json:"static"`
+		Dynamic map[string]string `mapstructure:"dynamic" json:"dynamic"`
+	} `mapstructure:"constants" json:"constants"`
 }
 
 type DiscordActivity struct {

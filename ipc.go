@@ -6,6 +6,9 @@ import (
 	"encoding/json"
 	"fmt"
 	"net"
+	"os"
+	"os/user"
+	"path/filepath"
 )
 
 type Packet struct {
@@ -13,7 +16,38 @@ type Packet struct {
 	Data []byte
 }
 
-func WritePacket(conn net.Conn, op uint32, data interface{}) error {
+func Connect() (net.Conn, error) {
+	runtimeDir := os.Getenv("XDG_RUNTIME_DIR")
+	// Fallback to /run/user/UID if XDG_RUNTIME_DIR is not set
+	if runtimeDir == "" {
+		u, err := user.Current()
+		if err != nil {
+			return nil, fmt.Errorf("failed to determine current user: %w", err)
+		}
+		runtimeDir = filepath.Join("/run/user", u.Uid)
+	}
+	const maxIPC = 10
+
+	for i := range maxIPC {
+		ipcPath := filepath.Join(runtimeDir, fmt.Sprintf("discord-ipc-%d", i))
+
+		if _, err := os.Stat(ipcPath); err != nil {
+			continue // skip non-existent socket
+		}
+
+		conn, err := net.Dial("unix", ipcPath)
+		if err != nil {
+			continue // skip failed attempts
+		}
+
+		fmt.Printf("Connected to Discord IPC socket: %s\n", ipcPath)
+		return conn, nil // success
+	}
+
+	return nil, fmt.Errorf("no available Discord IPC socket found")
+}
+
+func SendPacket(conn net.Conn, op uint32, data interface{}) error {
 	jsonData, err := json.Marshal(data)
 	if err != nil {
 		return err
@@ -24,11 +58,11 @@ func WritePacket(conn net.Conn, op uint32, data interface{}) error {
 	_ = binary.Write(&buf, binary.LittleEndian, uint32(len(jsonData)))
 	_, _ = buf.Write(jsonData)
 
-	_, err = conn.Write(buf.Bytes())
+	_, _ = conn.Write(buf.Bytes())
 	return err
 }
 
-func ReadPacket(conn net.Conn) {
+func ReadPacket(conn net.Conn, message string) {
 	header := make([]byte, 8)
 	_, err := conn.Read(header)
 	if err != nil {
@@ -36,7 +70,7 @@ func ReadPacket(conn net.Conn) {
 		return
 	}
 
-	opcode := binary.LittleEndian.Uint32(header[:4])
+	// opcode := binary.LittleEndian.Uint32(header[:4])
 	length := binary.LittleEndian.Uint32(header[4:])
 
 	payload := make([]byte, length)
@@ -65,18 +99,5 @@ func ReadPacket(conn net.Conn) {
 		}
 	}
 
-	switch opcode {
-	case 0: 
-		fmt.Println("Handshake successful. Connection to Discord established.")
-		fmt.Printf("Received Handshake Response:\n%s\n", string(prettyPayload))
-
-	case 1: 
-		fmt.Println("Activity successfully set on Discord.")
-		fmt.Printf("Activity Response:\n%s\n", string(prettyPayload))
-	case 3:
-		fmt.Println("Heartbeat response received. Connection is alive.")
-		fmt.Printf("Ping Response:\n%s\n", string(prettyPayload))
-	default:
-		fmt.Printf("Received unexpected response (OP %d):\n%s\n", opcode, string(prettyPayload))
-	}
+	fmt.Println(message, string(prettyPayload));
 }

@@ -1,22 +1,10 @@
 package main
 
 import (
-	"fmt"
-	"net"
-	"time"
-
 	"encoding/json"
+	"os/exec"
+	"strings"
 )
-
-func setActivity(conn net.Conn, payload map[string]any ) {
-	err := WritePacket(conn, 1, payload) // assuming this is your combined version
-	
-	if err != nil {
-		fmt.Println("Failed to update presence:", err)
-	} else {
-		fmt.Println("Presence updated at", time.Now().Format(time.RFC1123))
-	}
-}
 
 func cloneActivity(activity DiscordActivity) (DiscordActivity, error) {
 	var clone DiscordActivity
@@ -28,6 +16,14 @@ func cloneActivity(activity DiscordActivity) (DiscordActivity, error) {
 
 	err = json.Unmarshal(data, &clone)
 	return clone, err
+}
+
+func runExternalScript(scriptPath string) (string, error) {
+    out, err := exec.Command("/bin/sh", "-c", scriptPath).Output()
+    if err != nil {
+        return "", err
+    }
+    return strings.TrimSpace(string(out)), nil
 }
 
 

@@ -2,66 +2,38 @@ package main
 
 import (
 	"fmt"
-	"os"
+	"maps"
 	"reflect"
 	"strings"
-	"time"
-
-	"github.com/shirou/gopsutil/v3/host"
-
-	"golang.org/x/text/cases"
-	"golang.org/x/text/language"
 )
 
 // Constants
 // You can add as many constants as you want here and set them to anything
-func getConstants() map[string]string {
-	var s strings.Builder
-	hostInfo, _ := host.Info()
+func getConstants(data map[string]string) map[string]string {
+	constants := map[string]string{}
 
-	// uptime
-	duration := time.Duration(hostInfo.Uptime) * time.Second
+	// External commands from your config
+    for placeholder, scriptPath := range data {
+        output, err := runExternalScript(scriptPath)
+        if err != nil {
+            fmt.Printf("Error running external constant %s: %v\n", placeholder, err)
+            output = placeholder
+        } else {
+					constants[placeholder] = output
+					fmt.Printf("Successfully loaded constant %s: %v\n", placeholder, output)
+				}
+    }
 
-	days := fmt.Sprint(int(duration.Hours()) / 24)
-	hours := fmt.Sprint(int(duration.Hours()) % 24)
-	minutes := fmt.Sprint(int(duration.Minutes()) % 60)
-	seconds := fmt.Sprint(int(duration.Seconds()) % 60)
+	return constants
+}
 
-	// you can manually adjust how everything is formatted here
-	s.WriteString(days + " Days, ")
-	s.WriteString(hours + " Hours, ")
-	s.WriteString(minutes + " Minutes, ")
-	s.WriteString(seconds + " Seconds")
-	uptime := s.String()
+func MergeConstants(static, dynamic map[string]string) map[string]string {
+	merged := make(map[string]string)
 
-
-	// local time
-	time := time.Now().Format("15:04:05");
-
-	// hostname
-	hostname := hostInfo.Hostname
-
-	// username
-	username := os.Getenv("USER")
-	if username == "" {
-		username = os.Getenv("USERNAME") // windows fallback
-	}
-
-	// OS Platform
-	platform := cases.Title(language.English, cases.Compact).String(hostInfo.OS)
-
-	// OS name
-	version := hostInfo.KernelVersion
-
-	// all constants
-	return map[string]string{
-		"{uptime}":   uptime,
-		"{time}":     time,
-		"{hostname}": hostname,
-		"{username}": username,
-		"{platform}": platform,
-		"{version}": version,
-	}
+	maps.Copy(merged, static)
+	maps.Copy(merged, dynamic)
+	
+	return merged
 }
 
 func ProcessConstants(v any, constants map[string]string) {
@@ -75,7 +47,7 @@ func ProcessConstants(v any, constants map[string]string) {
 		return
 	}
 
-	for i := 0; i < val.NumField(); i++ {
+	for i := range val.NumField() {
 		field := val.Field(i)
 
 		if !field.CanSet() {

@@ -1,9 +1,7 @@
 package main
 
 import (
-	"encoding/json"
 	"fmt"
-	"net"
 	"os"
 	"time"
 
@@ -13,6 +11,7 @@ import (
 func main() {
 	// Load values from config
 	var config Config
+
 	viper.SetConfigName("config")
 	viper.AddConfigPath(".")
 	viper.SetConfigType("json")
@@ -28,19 +27,13 @@ func main() {
 	}
 	
 	// Connecting to IPC
-	socketPath := os.Getenv("DISCORD_IPC_PATH")
-	if socketPath == "" {
-		socketPath = "/run/user/1000/discord-ipc-0" // default for Unix systems
-	}
-
-	conn, err := net.Dial("unix", socketPath)
+	conn, err := Connect()
 	if err != nil {
-		fmt.Println("Failed to connect to Discord IPC:", err)
+		fmt.Println("Failed to Connect to Discord IPC")
 		os.Exit(1)
 	}
-	defer conn.Close()
 
-	// Send a Handshake
+	// Handshake
 	applicationID := config.Credentials.ApplicationID
 	if applicationID == "" {
 		fmt.Println("Missing APPLICATION_ID environment variable")
@@ -52,23 +45,29 @@ func main() {
 		"client_id": applicationID,
 	}
 
-	if err := WritePacket(conn, 0, handshake); err != nil {
+	if err := SendPacket(conn, 0, handshake); err != nil {
 		fmt.Println("Failed to send handshake:", err)
 		return
 	}
-	ReadPacket(conn);
+	ReadPacket(conn, "Handshake Output: ");
 
-	// Update ticker
-	updateTicker := time.NewTicker(30 * time.Second)
-	defer updateTicker.Stop()
+	// Update loop
+	update := time.NewTicker(15 * time.Second)
+	defer update.Stop()
 
 	go func() {
-		// Initialize presence once, then run every ticker cycle
+		// Fetch static constants once
+		staticConstants := getConstants(config.Constants.Static)
+
+		// Initialize presence once
 		activityClone, err := cloneActivity(config.Activity)
 		if err != nil {
 			fmt.Println("Failed to clone activity: ", err)
 		} else {
-			ProcessConstants(&activityClone, getConstants())
+			// Fetch dynamic constants and merge with static
+			constants := MergeConstants(staticConstants, getConstants(config.Constants.Dynamic))
+
+			ProcessConstants(&activityClone, constants)
 
 			activityPayload := map[string]any{
 				"cmd": "SET_ACTIVITY",
@@ -78,49 +77,50 @@ func main() {
 				},
 				"nonce": fmt.Sprintf("%d", time.Now().UnixNano()),
 			}
-
-			// Show resulting object for debugging purposes
-			payloadBytes, err := json.MarshalIndent(activityPayload, "", "  ")
-			if err != nil {
-				fmt.Println("Failed to parse activity:", err)
-			} else {
-				fmt.Println("Prepared full activty payload:")
-				fmt.Println(string(payloadBytes))
-			}
 			
-			setActivity(conn, activityPayload)
+			if err := SendPacket(conn, 1, activityPayload); err != nil {
+				fmt.Println("Failed to update presence:", err)
+			} else {
+				fmt.Println("Presence updated at", time.Now().Format(time.RFC1123))
+			}
+			ReadPacket(conn, "Resulting Presence Object: ")
 		}
 
-		for range updateTicker.C {
+		// ...Then run every ticker cycle
+		for range update.C {
 			activityClone, err := cloneActivity(config.Activity)
 			if err != nil {
 				fmt.Println("Failed to clone activity: ", err)
-			}
-			ProcessConstants(&activityClone, getConstants())
+			} else {
+				// Fetch dynamic constants and merge with static
+				constants := MergeConstants(staticConstants, getConstants(config.Constants.Dynamic))
+				ProcessConstants(&activityClone, constants)
 
-			activityPayload := map[string]any{
-				"cmd": "SET_ACTIVITY",
-				"args": map[string]any{
-					"pid": os.Getpid(),
-					"activity": activityClone,
-					},
-				"nonce": fmt.Sprintf("%d", time.Now().UnixNano()),
-			}
+				activityPayload := map[string]any{
+					"cmd": "SET_ACTIVITY",
+					"args": map[string]any{
+						"pid": os.Getpid(),
+						"activity": activityClone,
+						},
+					"nonce": fmt.Sprintf("%d", time.Now().UnixNano()),
+				}
 
-			setActivity(conn, activityPayload)
+				if err := SendPacket(conn, 1, activityPayload); err != nil {
+					fmt.Println("Failed to update presence:", err)
+				} else {
+					fmt.Println("Presence updated at", time.Now().Format(time.RFC1123))
+				}
+			}
+			
 		}
 	}()
 
+	// Heartbeat loop
+	heartbeat := time.NewTicker(15 * time.Second)
+	defer heartbeat.Stop()
 
-
-	// Step 3: Heartbeats
-	fmt.Println("Rich Presence set. Sending heartbeats...")
-
-	ticker := time.NewTicker(30 * time.Second)
-	defer ticker.Stop()
-
-	for range ticker.C {
-		if err := WritePacket(conn, 3, map[string]any{}); err != nil {
+	for range heartbeat.C {
+		if err := SendPacket(conn, 3, map[string]any{}); err != nil {
 			fmt.Println("Heartbeat failed:", err)
 			return
 		}
