@@ -49,7 +49,7 @@ Create a `config.json` file in the same directory as the build output.
 
 The schema is adjacent to the one used by Discord's Game SDK. Same constraints apply:
 
-```json
+```jsonc
 {
 	"credentials": {
 		"application_id": "123456789012345678" // Get from Discord Developer Portal
