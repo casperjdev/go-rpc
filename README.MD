@@ -6,7 +6,6 @@ A lightweight, configurable Discord Rich Presence client written in Go.
 
 - ✅ Fully configurable via `config.json`
 - ✅ Automatically refreshes presence at runtime
-- ✅ Support for dynamic placeholders (constants)
 - ✅ Custom data embedding via BASH scripts
 - ✅ No OAuth required
 
