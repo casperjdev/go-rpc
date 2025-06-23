@@ -136,15 +136,23 @@ Use a user-level service, not a system-wide one.
 >
 > ```bash
 > #!/bin/bash
-> APP_NAME="go-rpc"
-> APP_PATH="/path/to/app/go-rpc"
 >
+> APP_NAME="go-rpc"
+> APP_CMD="path/to/app/go-rpc"
+>
+> cleanup() {
+>   echo "Watcher stopped. Cleaning up..."
+>   pkill -x "$APP_NAME"
+>   exit 0
+> }
+>
+> trap cleanup EXIT INT TERM HUP
 >
 > while true; do
 >     if pgrep -x Discord > /dev/null; then
->         if ! pgrep -x $(basename "$GOAPP_CMD") > /dev/null; then
+>         if ! pgrep -x "$APP_NAME" > /dev/null; then
 >             echo "Starting Go app..."
->             "$APP_PATH" &
+>             "$APP_CMD" &
 >         fi
 >     else
 >         if pgrep -x "$APP_NAME" > /dev/null; then
@@ -152,7 +160,7 @@ Use a user-level service, not a system-wide one.
 >             pkill -x "$APP_NAME"
 >         fi
 >     fi
->     sleep 5
+>     sleep 2
 > done
 > ```
 >
@@ -160,11 +168,18 @@ Use a user-level service, not a system-wide one.
 >
 > ```service
 > [Unit]
-> Description=Run Go app when Discord is running
+> Description=Discord Go App Watcher
+> After=graphical-session.target
+> PartOf=graphical-session.target
 >
 > [Service]
-> ExecStart=.../.../watcher.sh
-> Restart=always
+> Type=simple
+> WorkingDirectory=/path/to/watcher
+> ExecStart=/path/to/watcher/watcher.sh
+> Restart=on-failure
+> KillMode=control-group
+> TimeoutStopSec=5
+> RemainAfterExit=no
 >
 > [Install]
 > WantedBy=default.target
